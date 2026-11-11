@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -16,8 +17,14 @@ namespace Worker
         {
             try
             {
-                var pgsql = OpenDbConnection("Server=localhost;Username=postgres;Password=postgres;");
-                var redisConn = OpenRedisConnection("localhost");
+                var dbHost = GetEnv("DB_HOST", "localhost");
+                var dbUser = GetEnv("DB_USER", "postgres");
+                var dbName = GetEnv("DB_NAME", "postgres");
+                var dbConnectionString = $"Server={dbHost};Username={dbUser};Password={GetDbPassword()};Database={dbName};";
+                var redisHost = GetEnv("REDIS_HOST", "localhost");
+
+                var pgsql = OpenDbConnection(dbConnectionString);
+                var redisConn = OpenRedisConnection(redisHost);
                 var redis = redisConn.GetDatabase();
 
                 var keepAliveCommand = pgsql.CreateCommand();
@@ -31,7 +38,7 @@ namespace Worker
                     // Se reconnecter à Redis si la connexion est perdue
                     if (redisConn == null || !redisConn.IsConnected) {
                         Console.WriteLine("Reconnecting Redis");
-                        redisConn = OpenRedisConnection("localhost");
+                        redisConn = OpenRedisConnection(redisHost);
                         redis = redisConn.GetDatabase();
                     }
                     string json = redis.ListLeftPopAsync("votes").Result;
@@ -44,12 +51,14 @@ namespace Worker
                         if (!pgsql.State.Equals(System.Data.ConnectionState.Open))
                         {
                             Console.WriteLine("Reconnecting DB");
-                            pgsql = OpenDbConnection("Server=localhost;Username=postgres;Password=postgres;");
+                            pgsql = OpenDbConnection(dbConnectionString);
+                            // The keep-alive command must use the new connection
+                            keepAliveCommand = pgsql.CreateCommand();
+                            keepAliveCommand.CommandText = "SELECT 1";
                         }
-                        else
-                        {
-                            UpdateVote(pgsql, vote.voter_id, vote.vote);
-                        }
+
+                        // The vote is saved even after a reconnection
+                        UpdateVote(pgsql, vote.voter_id, vote.vote);
                     }
                     else
                     {
@@ -62,6 +71,21 @@ namespace Worker
                 Console.Error.WriteLine(ex.ToString());
                 return 1;
             }
+        }
+
+        private static string GetEnv(string name, string defaultValue)
+            => Environment.GetEnvironmentVariable(name) ?? defaultValue;
+
+        // With Docker Swarm, the password is read from a file (secret)
+        private static string GetDbPassword()
+        {
+            var passwordFile = Environment.GetEnvironmentVariable("DB_PASSWORD_FILE");
+            if (passwordFile != null)
+            {
+                return File.ReadAllText(passwordFile).Trim();
+            }
+
+            return GetEnv("DB_PASSWORD", "postgres");
         }
 
         private static NpgsqlConnection OpenDbConnection(string connectionString)
