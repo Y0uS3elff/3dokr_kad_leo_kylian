@@ -22,8 +22,18 @@ io.sockets.on("connection", function (socket) {
   })
 })
 
+function getDbPassword() {
+  if (process.env.DB_PASSWORD_FILE) {
+    return fs.readFileSync(process.env.DB_PASSWORD_FILE, "utf8").trim()
+  }
+  return process.env.DB_PASSWORD || "postgres"
+}
+
 const pool = new pg.Pool({
-  connectionString: "postgres://postgres:postgres@localhost/postgres",
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "postgres",
+  password: getDbPassword(),
+  database: process.env.DB_NAME || "postgres",
 })
 
 async.retry(
