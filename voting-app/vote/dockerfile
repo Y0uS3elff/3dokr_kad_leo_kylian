@@ -12,7 +12,7 @@ COPY app.py .
 COPY templates ./templates
 COPY static ./static
 
-RUN useradd --system --no-create-home appuser
+RUN useradd --system --create-home appuser
 USER appuser
 
 EXPOSE 8080

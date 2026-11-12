@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:7.0-alpine AS build
 
 WORKDIR /src
 
@@ -8,11 +8,13 @@ RUN dotnet restore
 COPY Program.cs .
 RUN dotnet publish -c Release --no-restore -o /app
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:7.0-alpine AS runtime
 
 WORKDIR /app
 COPY --from=build /app .
 
-USER app
+# The .NET 7 images have no "app" user, so we create one
+RUN adduser -D -H appuser
+USER appuser
 
 CMD ["dotnet", "Worker.dll"]
