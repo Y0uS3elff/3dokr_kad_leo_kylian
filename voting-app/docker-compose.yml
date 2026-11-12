@@ -62,10 +62,6 @@ services:
     restart:
       unless-stopped
 
-
-
-
-
   worker:
     build: ./worker
     image: voting-app/worker:1.0

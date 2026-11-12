@@ -1,0 +1,113 @@
+services:
+  vote:
+    image: 127.0.0.1:5000/voting-app/vote:1.0
+    ports:
+      - "8080:8080"
+    environment:
+      REDIS_HOST: redis
+    networks:
+      - front
+      - vote
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  worker:
+    image: 127.0.0.1:5000/voting-app/worker:1.0
+    environment:
+      REDIS_HOST: redis
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: postgres
+    secrets:
+      - db_password
+    networks:
+      - vote
+      - resultat
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  result:
+    image: 127.0.0.1:5000/voting-app/result:1.0
+    ports:
+      - "8081:8888"
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: postgres
+    secrets:
+      - db_password
+    networks:
+      - front
+      - resultat
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vote
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: postgres
+    secrets:
+      - db_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - resultat
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+
+volumes:
+  redis-data:
+  db-data:
+
+secrets:
+  db_password:
+    external: true
+
+networks:
+  front:
+    driver: overlay
+  vote:
+    driver: overlay
+    internal: true
+  resultat:
+    driver: overlay
+    internal: true
