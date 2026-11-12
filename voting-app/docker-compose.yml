@@ -1,0 +1,123 @@
+name: voting-app
+services:
+
+
+  redis:
+    image: "redis:8-alpine"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+    networks:
+      - vote
+    restart:
+      unless-stopped
+
+
+
+  db:
+    image: "postgres:17-alpine"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: ${POSTGRES_DB}
+    secrets:
+      - db_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+    networks:
+      - resultat
+    restart:
+      unless-stopped
+
+
+
+  result:
+    build: ./result
+    image: voting-app/result:1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: ${POSTGRES_DB}
+    secrets:
+      - db_password
+    networks:
+      - front
+      - resultat
+    ports:
+      - "8081:8888"
+    restart:
+      unless-stopped
+
+
+
+
+
+  worker:
+    build: ./worker
+    image: voting-app/worker:1.0
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      DB_HOST: db
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_NAME: ${POSTGRES_DB}
+    secrets:
+      - db_password
+    networks:
+      - vote
+      - resultat
+    restart:
+      unless-stopped
+
+
+  vote:
+    build: ./vote
+    image: voting-app/vote:1.0
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+    networks:
+      - front
+      - vote
+    ports:
+      - "8080:8080"
+    restart:
+      unless-stopped
+
+
+secrets:
+  db_password:
+    environment: POSTGRES_PASSWORD
+
+
+volumes:
+  redis-data:
+  db-data:
+
+networks:
+  front:
+  vote:
+    internal: true
+  resultat:
+    internal: true
