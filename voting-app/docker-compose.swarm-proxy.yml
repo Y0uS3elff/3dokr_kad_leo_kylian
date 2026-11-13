@@ -1,13 +1,3 @@
-# Relay used only to test the Swarm cluster simulated with Docker-in-Docker.
-# With Docker Desktop, the ports published by the "manager" node do not always
-# answer from the host. This relay joins the swarm-lab network and forwards:
-#   localhost:9080 -> manager:8080 (vote)
-#   localhost:9081 -> manager:8081 (result)
-#
-# Start it after the nodes:  docker compose -f docker-compose.swarm-proxy.yml up -d
-# Stop it:                   docker compose -f docker-compose.swarm-proxy.yml down
-
-# Separate project name, so it does not mix with the main docker-compose.yml
 name: swarm-proxy
 
 services:
@@ -29,6 +19,5 @@ services:
     restart: unless-stopped
 
 networks:
-  # Network created beforehand with: docker network create swarm-lab
   swarm-lab:
     external: true

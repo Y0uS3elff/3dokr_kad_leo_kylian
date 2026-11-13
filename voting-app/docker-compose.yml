@@ -1,7 +1,6 @@
 name: voting-app
 services:
 
-
   redis:
     image: "redis:8-alpine"
     command: ["redis-server", "--appendonly", "yes"]
@@ -16,8 +15,6 @@ services:
       - vote
     restart:
       unless-stopped
-
-
 
   db:
     image: "postgres:17-alpine"
@@ -38,8 +35,6 @@ services:
       - resultat
     restart:
       unless-stopped
-
-
 
   result:
     build: ./result
@@ -84,7 +79,6 @@ services:
     restart:
       unless-stopped
 
-
   vote:
     build: ./vote
     image: voting-app/vote:1.0
@@ -101,11 +95,9 @@ services:
     restart:
       unless-stopped
 
-
 secrets:
   db_password:
     environment: POSTGRES_PASSWORD
-
 
 volumes:
   redis-data:
